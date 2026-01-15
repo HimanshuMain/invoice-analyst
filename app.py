@@ -4,7 +4,6 @@ import json
 import random
 from datetime import datetime, timedelta
 
-# Third-party imports
 import pandas as pd
 import streamlit as st
 from PIL import Image
@@ -15,14 +14,13 @@ import google.generativeai as genai
 # --- Config & Setup ---
 load_dotenv()
 
-# Constants
 API_KEY = os.getenv("GOOGLE_API_KEY")
 MODEL_NAME = "gemini-2.5-flash"
 SAMPLE_DIR = "samples"
 SAMPLE_CSV_PATH = os.path.join(SAMPLE_DIR, "sample_data.csv")
 SAMPLE_IMG_PATH = os.path.join(SAMPLE_DIR, "sample_invoice.jpg")
 
-# Configure Gemini
+# Configuring Gemini
 if not API_KEY:
     st.error("Missing Google API Key. Please set it in your .env file.")
     st.stop()
@@ -30,7 +28,6 @@ if not API_KEY:
 genai.configure(api_key=API_KEY)
 st.set_page_config(page_title="Invoice Extractor", layout="wide", page_icon="🧾")
 
-# --- Utils & Helpers ---
 
 def ensure_sample_files():
     """Generates dummy files for testing if they don't exist."""
@@ -136,7 +133,7 @@ def flatten_json_data(json_data):
         # Fallback
         return pd.DataFrame([json_data])
 
-# --- Main App Logic ---
+# Main App Logic---
 
 # Init samples
 ensure_sample_files()
@@ -179,7 +176,7 @@ elif st.session_state.get('active_sample') == 'csv':
     active_file.type = "text/csv"
     source_mode = "sample"
 
-# UI Layout
+# UI
 st.title("🧾AI Invoice Analyst")
 st.caption("Analyze, Summarize, Extract using this smart Extractor")
 
