@@ -1,0 +1,7 @@
+streamlit
+google-generativeai
+python-dotenv
+pyPDF2
+pillow
+openpyxl
+pandas

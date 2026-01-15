@@ -1,0 +1,41 @@
+Invoice_ID,Date,Vendor_Name,Item_Description,Quantity,Unit_Price,Tax_Amount,Total_Amount,Payment_Method,Status
+INV-2025-1001,2025-03-12,Google Cloud,API Usage Credits,3,$120.50,$36.15,$397.65,Credit Card,Paid
+INV-2025-1002,2025-06-24,Office Depot,Office Chairs (x5),1,$450.00,$45.00,$495.00,Corporate Card,Pending
+INV-2025-1003,2025-01-15,Amazon AWS,Server Hosting Fee,1,$89.99,$9.00,$98.99,Bank Transfer,Paid
+INV-2025-1004,2025-09-02,Apple Store,MacBook Pro M3,2,$2100.00,$420.00,$4620.00,Credit Card,Processed
+INV-2025-1005,2025-11-18,Uber Trip,Travel Expenses,1,$45.20,$4.52,$49.72,PayPal,Paid
+INV-2025-1006,2025-04-05,Slack Technologies,Monthly Subscription,50,$12.00,$60.00,$660.00,Corporate Card,Paid
+INV-2025-1007,2025-02-28,Adobe Creative Cloud,Enterprise License,10,$59.99,$59.99,$659.89,Credit Card,Pending
+INV-2025-1008,2025-07-14,WeWork,Consulting Services,1,$500.00,$50.00,$550.00,Bank Transfer,Paid
+INV-2025-1009,2025-08-22,Delta Airlines,Travel Expenses,1,$320.40,$32.04,$352.44,Corporate Card,Paid
+INV-2025-1010,2025-12-05,GitHub Inc.,Cloud Storage 5TB,1,$25.00,$2.50,$27.50,PayPal,Processed
+INV-2025-1011,2025-05-19,Zoom Video Communications,Monthly Subscription,5,$14.99,$7.50,$82.45,Credit Card,Paid
+INV-2025-1012,2025-10-10,Staples,Printer Toner Cartridges,4,$85.00,$34.00,$374.00,Corporate Card,Pending
+INV-2025-1013,2025-01-30,Microsoft Azure,Server Hosting Fee,1,$210.00,$21.00,$231.00,Bank Transfer,Paid
+INV-2025-1014,2025-03-15,DigitalOcean,Cloud Storage 5TB,2,$15.00,$3.00,$33.00,Credit Card,Paid
+INV-2025-1015,2025-06-08,Salesforce,Enterprise License,1,$1500.00,$150.00,$1650.00,Bank Transfer,Processed
+INV-2025-1016,2025-09-25,Google Cloud,API Usage Credits,10,$10.00,$10.00,$110.00,Credit Card,Paid
+INV-2025-1017,2025-11-02,Apple Store,Monitor Stand,2,$99.00,$19.80,$217.80,PayPal,Pending
+INV-2025-1018,2025-04-16,Amazon AWS,Server Hosting Fee,1,$125.50,$12.55,$138.05,Credit Card,Paid
+INV-2025-1019,2025-02-11,Office Depot,Office Chairs (x5),2,$250.00,$50.00,$550.00,Corporate Card,Paid
+INV-2025-1020,2025-07-29,Adobe Creative Cloud,Monthly Subscription,1,$54.99,$5.50,$60.49,Credit Card,Processed
+INV-2025-1021,2025-08-03,Uber Trip,Travel Expenses,1,$28.75,$2.88,$31.63,PayPal,Paid
+INV-2025-1022,2025-12-15,WeWork,Consulting Services,1,$750.00,$75.00,$825.00,Bank Transfer,Pending
+INV-2025-1023,2025-05-24,Delta Airlines,Travel Expenses,1,$410.00,$41.00,$451.00,Corporate Card,Paid
+INV-2025-1024,2025-10-30,GitHub Inc.,Enterprise License,5,$21.00,$10.50,$115.50,Credit Card,Paid
+INV-2025-1025,2025-01-08,Zoom Video Communications,Monthly Subscription,2,$14.99,$3.00,$32.98,PayPal,Processed
+INV-2025-1026,2025-03-22,Staples,Printer Toner Cartridges,1,$120.00,$12.00,$132.00,Corporate Card,Pending
+INV-2025-1027,2025-06-14,Microsoft Azure,Cloud Storage 5TB,1,$45.00,$4.50,$49.50,Bank Transfer,Paid
+INV-2025-1028,2025-09-11,DigitalOcean,Server Hosting Fee,1,$12.00,$1.20,$13.20,Credit Card,Paid
+INV-2025-1029,2025-11-28,Salesforce,API Usage Credits,100,$0.05,$0.50,$5.50,Credit Card,Paid
+INV-2025-1030,2025-04-01,Google Cloud,Server Hosting Fee,1,$300.00,$30.00,$330.00,Bank Transfer,Processed
+INV-2025-1031,2025-02-19,Apple Store,MacBook Pro M3,1,$2400.00,$240.00,$2640.00,Credit Card,Paid
+INV-2025-1032,2025-07-07,Amazon AWS,Domain Renewal,1,$12.00,$1.20,$13.20,PayPal,Pending
+INV-2025-1033,2025-08-15,Office Depot,Monitor Stand,3,$45.00,$13.50,$148.50,Corporate Card,Paid
+INV-2025-1034,2025-12-22,Slack Technologies,Enterprise License,20,$15.00,$30.00,$330.00,Bank Transfer,Paid
+INV-2025-1035,2025-05-09,Adobe Creative Cloud,Monthly Subscription,1,$29.99,$3.00,$32.99,Credit Card,Processed
+INV-2025-1036,2025-10-18,WeWork,Office Chairs (x5),1,$600.00,$60.00,$660.00,Corporate Card,Pending
+INV-2025-1037,2025-01-25,Delta Airlines,Travel Expenses,1,$550.00,$55.00,$605.00,Bank Transfer,Paid
+INV-2025-1038,2025-03-05,GitHub Inc.,API Usage Credits,50,$1.00,$5.00,$55.00,PayPal,Paid
+INV-2025-1039,2025-06-30,Zoom Video Communications,Monthly Subscription,10,$14.99,$14.99,$164.89,Credit Card,Processed
+INV-2025-1040,2025-09-18,Staples,Monitor Stand,1,$75.00,$7.50,$82.50,Corporate Card,Paid
