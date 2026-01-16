@@ -1,6 +1,7 @@
 import os
 import io
 import json
+import re
 import random
 from datetime import datetime, timedelta
 
@@ -11,274 +12,269 @@ import PyPDF2 as pdf
 from dotenv import load_dotenv
 import google.generativeai as genai
 
-# --- Config & Setup ---
+# --- Configuration ---
 load_dotenv()
+api_key = os.getenv("GOOGLE_API_KEY")
 
-API_KEY = os.getenv("GOOGLE_API_KEY")
-MODEL_NAME = "gemini-2.5-flash"
-SAMPLE_DIR = "samples"
-SAMPLE_CSV_PATH = os.path.join(SAMPLE_DIR, "sample_data.csv")
-SAMPLE_IMG_PATH = os.path.join(SAMPLE_DIR, "sample_invoice.jpg")
-
-# Configuring Gemini
-if not API_KEY:
-    st.error("Missing Google API Key. Please set it in your .env file.")
+if not api_key:
+    st.error("API Key missing. Please check your .env file.")
     st.stop()
 
-genai.configure(api_key=API_KEY)
-st.set_page_config(page_title="Invoice Extractor", layout="wide", page_icon="🧾")
+genai.configure(api_key=api_key)
+st.set_page_config(page_title="AI Invoice Analyst", layout="wide", page_icon="🧾")
 
+# Model priority list
+MODELS = [
+    "gemini-2.5-flash",
+    "gemini-2.5-flash-lite",
+    "gemini-3-flash",
+    "gemma-3-27b-it"
+]
 
-def ensure_sample_files():
-    """Generates dummy files for testing if they don't exist."""
-    if not os.path.exists(SAMPLE_DIR):
-        os.makedirs(SAMPLE_DIR)
+SAMPLE_DIR = "samples"
+SAMPLE_CSV = os.path.join(SAMPLE_DIR, "sample_data.csv")
+SAMPLE_IMG = os.path.join(SAMPLE_DIR, "sample_invoice.jpg")
 
-    # Generate dummy CSV if missing
-    if not os.path.exists(SAMPLE_CSV_PATH):
+# --- Utilities ---
+
+def init_samples():
+    if not os.path.exists(SAMPLE_DIR): os.makedirs(SAMPLE_DIR)
+    if not os.path.exists(SAMPLE_CSV):
         data = []
-        vendors = ["Amazon", "Google", "Microsoft", "Apple", "Uber", "Slack", "Notion"]
-        for i in range(1, 41):
-            row = {
+        for i in range(1, 21):
+            data.append({
                 "Invoice_ID": f"INV-{1000+i}",
-                "Date": (datetime(2025, 1, 1) + timedelta(days=random.randint(0, 365))).strftime("%Y-%m-%d"),
-                "Vendor": random.choice(vendors),
-                "Amount": round(random.uniform(50, 5000), 2),
-                "Status": random.choice(["Paid", "Pending", "Overdue"])
-            }
-            data.append(row)
-        
-        # Save with BOM for Excel compatibility (Hindi/UTF-8 support)
-        pd.DataFrame(data).to_csv(SAMPLE_CSV_PATH, index=False, encoding='utf-8-sig')
+                "Date": (datetime(2025, 1, 1) + timedelta(days=random.randint(0, 90))).strftime("%Y-%m-%d"),
+                "Vendor": random.choice(["Amazon", "Google", "Microsoft", "Uber"]),
+                "Amount": round(random.uniform(50, 2000), 2),
+                "Status": random.choice(["Paid", "Pending"])
+            })
+        pd.DataFrame(data).to_csv(SAMPLE_CSV, index=False)
 
-def get_file_bytes(filepath):
-    """Reads a local file and returns a BytesIO object."""
-    if not os.path.exists(filepath):
-        return None
-    
-    with open(filepath, "rb") as f:
-        file_bytes = f.read()
-    
-    file_obj = io.BytesIO(file_bytes)
-    file_obj.name = os.path.basename(filepath)
-    return file_obj
+def get_file_bytes(path):
+    if not os.path.exists(path): return None
+    with open(path, "rb") as f: return io.BytesIO(f.read())
 
-def query_gemini(prompt, content, user_query=None):
-    """Wraps the API call to Gemini."""
+def call_llm(role, content, prompt):
+    # Handle list (images) vs string (text)
+    payload = [f"Role: {role}\nTask: {prompt}"] + content if isinstance(content, list) else [f"Role: {role}\nTask: {prompt}", content]
+    
+    for model in MODELS:
+        try:
+            llm = genai.GenerativeModel(model)
+            response = llm.generate_content(payload)
+            return response.text
+        except:
+            continue
+    return "Error: Service busy."
+
+def clean_json(text):
     try:
-        model = genai.GenerativeModel(MODEL_NAME)
-        # Content can be a list (image parts) or string (text)
-        payload = [prompt, content[0] if isinstance(content, list) else content]
-        if user_query:
-            payload.append(user_query)
-            
-        response = model.generate_content(payload)
-        return response.text
-    except Exception as e:
-        return f"API Error: {str(e)}"
+        text = re.sub(r"```json\s*", "", text, flags=re.IGNORECASE)
+        text = re.sub(r"```", "", text)
+        start, end = text.find("{"), text.rfind("}") + 1
+        return text[start:end] if start != -1 else text
+    except: return text
 
-def parse_file(uploaded_file):
-    """
-    Parses the uploaded file based on type.
-    Returns: (processed_data, file_type_label)
-    """
-    file_ext = uploaded_file.name.split('.')[-1].lower()
+def clean_python_code(text):
+    text = re.sub(r"```python\s*", "", text, flags=re.IGNORECASE)
+    text = re.sub(r"```", "", text)
+    return text.strip()
+
+def load_file(file):
+    ext = file.name.split('.')[-1].lower()
     
-    # 1. Images
-    if file_ext in ['jpg', 'jpeg', 'png']:
-        bytes_data = uploaded_file.getvalue()
-        image_parts = [{"mime_type": uploaded_file.type, "data": bytes_data}]
-        return image_parts, "image"
-
-    # 2. PDFs
-    elif file_ext == 'pdf':
+    if ext in ['jpg', 'jpeg', 'png']:
+        return [{"mime_type": file.type, "data": file.getvalue()}], "image"
+    elif ext == 'pdf':
         try:
-            reader = pdf.PdfReader(uploaded_file)
-            text = "\n".join([page.extract_text() for page in reader.pages if page.extract_text()])
-            return text, "pdf"
-        except Exception:
-            return None, "error"
-
-    # 3. Spreadsheets
-    elif file_ext in ['csv', 'xlsx', 'xls']:
+            reader = pdf.PdfReader(file)
+            return "\n".join([p.extract_text() for p in reader.pages if p.extract_text()]), "pdf"
+        except: return None, "error"
+    elif ext in ['csv', 'xlsx']:
         try:
-            if file_ext == 'csv':
-                df = pd.read_csv(uploaded_file)
-            else:
-                df = pd.read_excel(uploaded_file)
-            return df.to_string(), "spreadsheet"
-        except Exception:
-            return None, "error"
-            
+            df = pd.read_csv(file) if ext == 'csv' else pd.read_excel(file)
+            return df, "dataframe"
+        except: return None, "error"
     return None, "unknown"
 
-def flatten_json_data(json_data):
-    """Flattens nested JSON (like 'Items' lists) into a flat DataFrame."""
-    try:
-        # Auto-detect the list key
-        target_key = None
-        for key in ["Items", "Line_Items", "products", "items", "entries"]:
-            if key in json_data and isinstance(json_data[key], list):
-                target_key = key
-                break
-        
-        if target_key:
-            # Keep top-level keys as metadata for each row
-            meta_cols = [k for k in json_data.keys() if k != target_key]
-            return pd.json_normalize(json_data, record_path=[target_key], meta=meta_cols)
-        
-        # Already flat
-        return pd.DataFrame([json_data])
-    except Exception:
-        # Fallback
-        return pd.DataFrame([json_data])
+# --- Main Interface ---
 
-# Main App Logic---
+init_samples()
 
-# Init samples
-ensure_sample_files()
-has_sample_img = os.path.exists(SAMPLE_IMG_PATH)
+st.title("🧾 AI Invoice Analyst")
 
-# Sidebar
 with st.sidebar:
-    st.header("📂 Input")
-    uploaded_file = st.file_uploader("Upload Invoice", type=["jpg", "png", "pdf", "csv", "xlsx"])
+    st.header("Input")
+    uploaded_file = st.file_uploader("Drop file here", type=["jpg", "png", "pdf", "csv", "xlsx"])
     
-    st.markdown("---")
-    st.subheader("🧪 Test Data")
-    st.caption("No file? Try these:")
-    
+    st.divider()
+    st.subheader("Test")
     c1, c2 = st.columns(2)
-    with c1:
-        if st.button("📄 PDF/Img", disabled=not has_sample_img):
-            st.session_state.active_sample = 'image'
-            
-    with c2:
-        if st.button("📊 CSV"):
-            st.session_state.active_sample = 'csv'
-
-    if st.button("Clear Selection", type="secondary"):
-        st.session_state.pop('active_sample', None)
+    
+    if c1.button("Sample Image"): st.session_state.demo = 'image'
+    if c2.button("Sample CSV"): st.session_state.demo = 'csv'
+    
+    if st.button("Clear", type="primary"): 
+        st.session_state.pop('demo', None)
         st.rerun()
 
-# Determine Source
-active_file = None
-source_mode = "upload" # or "sample"
+# File Loading Logic
+file_obj = uploaded_file
+if not file_obj:
+    if st.session_state.get('demo') == 'image' and os.path.exists(SAMPLE_IMG):
+        file_obj = get_file_bytes(SAMPLE_IMG)
+        file_obj.name = "sample.jpg"
+        file_obj.type = "image/jpeg"
+    elif st.session_state.get('demo') == 'csv' and os.path.exists(SAMPLE_CSV):
+        file_obj = get_file_bytes(SAMPLE_CSV)
+        file_obj.name = "sample.csv"
+        file_obj.type = "text/csv"
 
-if uploaded_file:
-    active_file = uploaded_file
-elif st.session_state.get('active_sample') == 'image' and has_sample_img:
-    active_file = get_file_bytes(SAMPLE_IMG_PATH)
-    active_file.type = "image/jpeg" # Mock mime
-    source_mode = "sample"
-elif st.session_state.get('active_sample') == 'csv':
-    active_file = get_file_bytes(SAMPLE_CSV_PATH)
-    active_file.type = "text/csv"
-    source_mode = "sample"
+content = None
+ftype = None
 
-# UI
-st.title("🧾AI Invoice Analyst")
-st.caption("Analyze, Summarize, Extract using this smart Extractor")
+if file_obj:
+    content, ftype = load_file(file_obj)
 
-col_left, col_right = st.columns([1, 1.2])
-processed_data = None
-
-# Left: Preview
-with col_left:
-    st.subheader("Preview")
+# ==========================================
+# 1. Image / PDF Extraction
+# ==========================================
+if ftype in ["image", "pdf"]:
+    col1, col2 = st.columns([1, 1.2])
     
-    if active_file:
-        if source_mode == "sample":
-            st.info(f"Using sample: `{active_file.name}`")
-            
-        processed_data, ftype = parse_file(active_file)
-        
-        if ftype == "image":
-            active_file.seek(0)
-            st.image(Image.open(active_file), caption="Source Image", use_container_width=True)
-        elif ftype == "pdf":
-            st.text_area("Extracted Text", processed_data, height=400)
-        elif ftype == "spreadsheet":
-            active_file.seek(0)
-            df = pd.read_csv(active_file) if active_file.name.endswith('.csv') else pd.read_excel(active_file)
-            st.dataframe(df, height=400)
-        elif ftype == "error":
-            st.error("Could not read file.")
-    else:
-        st.info("👈 Upload a file or pick a sample to start.")
+    with col1:
+        st.subheader("Document")
+        if ftype == "image": 
+            file_obj.seek(0)
+            st.image(Image.open(file_obj), use_container_width=True)
+        else: 
+            st.text_area("Text Content", content, height=500)
 
-# Right: Actions
-with col_right:
-    st.subheader("Analysis")
-    
-    if processed_data:
-        # Quick Actions
-        st.markdown("##### Quick Actions")
-        c1, c2 = st.columns(2)
-        
-        do_summarize = c1.button("📝 Summarize", use_container_width=True)
-        do_extract = c2.button("📊 Extract Data", use_container_width=True)
+    with col2:
+        st.subheader("Analysis")
+        b1, b2 = st.columns(2)
+        summ_btn = b1.button("📝 Summarize", use_container_width=True)
+        ext_btn = b2.button("📊 Extract Data", use_container_width=True)
         
         st.divider()
-        
-        # Custom Query
-        st.markdown("##### Custom Query")
-        user_query = st.text_input("Ask something specific...", placeholder="e.g. What is the total tax?")
-        do_ask = st.button("🚀 Run Query", type="primary")
+        query = st.text_input("Ask a question:", placeholder="e.g. Verify the tax calculation")
+        ask_btn = st.button("Run Query", type="primary")
 
-        # Logic
         prompt = ""
-        is_extract_task = False
+        is_json = False
         
-        if do_summarize:
-            prompt = "Summarize this document. Identify the vendor, date, and key totals."
-        elif do_extract:
-            is_extract_task = True
-            prompt = """
-            Extract invoice data into valid JSON. Structure:
-            {
-                "Invoice_No": "string",
-                "Date": "YYYY-MM-DD",
-                "Vendor": "string",
-                "Total_Amount": float,
-                "Currency": "string",
-                "Items": [
-                    {"Description": "string", "Qty": int, "Rate": float, "Amount": float}
-                ]
-            }
-            Ensure dates are standardized. If a field is missing, use null.
-            """
-        elif do_ask and user_query:
-            prompt = user_query
+        if summ_btn:
+            prompt = "Provide a summary: Vendor, Date, Total Amount, and key line items."
             
-        # Execution
+        elif ext_btn:
+            is_json = True
+            prompt = """
+            Extract table data to pure JSON.
+            
+            1. Metadata: Extract Invoice_No, Date, Vendor.
+            
+            2. Items:
+            - Identify the table header row.
+            - Create a key for EVERY column visible in the table.
+            - Translate headers to English (e.g. 'Rashi' -> 'Amount').
+            - Do NOT group columns. Keep Tax and Amount separate if visualy separate.
+            - Do NOT invent columns like 'Doc_ID'.
+            - Stop extracting at the footer/total line.
+            
+            Format:
+            {
+                "Invoice_No": "val", "Date": "val", "Vendor": "val",
+                "Items": [{ "Description": "A", "Qty": "1", "Rate": "100", "Amount": "100" }]
+            }
+            """
+            
+        elif ask_btn and query:
+            prompt = f"Answer strictly based on the document: {query}"
+
         if prompt:
             with st.spinner("Processing..."):
-                response_text = query_gemini("You are an expert financial analyst.", processed_data, prompt)
+                res = call_llm("Analyst", content, prompt)
                 
-                if is_extract_task:
-                    # Handle JSON Extraction
+                if is_json:
                     try:
-                        # Strip markdown if present
-                        clean_json = response_text.replace("```json", "").replace("```", "").strip()
-                        data_dict = json.loads(clean_json)
+                        clean_res = clean_json(res)
+                        data = json.loads(clean_res)
                         
-                        # Flatten for display
-                        df_flat = flatten_json_data(data_dict)
+                        # Find the list of items
+                        target_key = next((k for k, v in data.items() if isinstance(v, list)), None)
                         
-                        st.success("Extraction Complete")
-                        st.dataframe(df_flat)
-                        
-                        # CSV Download
-                        csv_data = df_flat.to_csv(index=False).encode('utf-8-sig')
-                        st.download_button("📥 Download CSV", csv_data, "invoice_data.csv", "text/csv")
-                        
-                    except json.JSONDecodeError:
-                        st.error("Failed to parse JSON response. Raw output below:")
-                        st.code(response_text)
-                    except Exception as e:
-                        st.error(f"Error processing data: {e}")
+                        if target_key:
+                            df = pd.json_normalize(data[target_key])
+                            
+                            # Inject metadata into rows using Python
+                            for k in ["Invoice_No", "Date", "Vendor"]:
+                                if k in data: df.insert(0, k, data[k])
+                                
+                            st.dataframe(df)
+                            st.download_button("Download CSV", df.to_csv(index=False).encode('utf-8-sig'), "data.csv")
+                        else:
+                            st.error("Structure not found.")
+                            st.code(res)
+                    except:
+                        st.error("Parsing failed.")
+                        st.code(res)
                 else:
-                    # Standard Text Response
-                    st.markdown("### Result")
-                    st.write(response_text)
+                    st.markdown(res)
+
+# ==========================================
+# 2. CSV / Data Analysis
+# ==========================================
+elif ftype == "dataframe":
+    df = content
+    
+    # Auto-clean numeric columns
+    for col in df.columns:
+        if any(x in col.lower() for x in ['amount', 'total', 'cost', 'price', 'tax']):
+            try:
+                df[col] = df[col].astype(str).str.replace(r'[$,₹]', '', regex=True)
+                df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0)
+            except: pass
+
+    st.subheader("📊 Dataset Overview")
+    
+    c1, c2, c3 = st.columns(3)
+    c1.metric("Rows", len(df))
+    
+    amt_col = next((c for c in df.columns if any(x in c.lower() for x in ["amount", "total", "cost"])), None)
+    if amt_col:
+        total = df[amt_col].sum()
+        c2.metric("Total Value", f"{total:,.2f}")
+        c3.metric("Average", f"{total/len(df):,.2f}")
+    
+    st.dataframe(df, use_container_width=True)
+    
+    st.divider()
+    st.subheader("💬 Smart Analysis")
+    
+    user_q = st.text_input("Ask a question about the data:", placeholder="e.g. Total spend by Vendor?")
+    
+    if st.button("Calculate", type="primary"):
+        if user_q:
+            with st.spinner("Calculating..."):
+                prompt = f"""
+                You are a Python Expert.
+                DataFrame `df` columns: {list(df.columns)}.
+                
+                Write a single line of Python code to answer: "{user_q}".
+                - Assume `df` is pre-loaded.
+                - Return ONLY the code string.
+                """
+                
+                code_res = call_llm("Programmer", "None", prompt)
+                clean_code = clean_python_code(code_res)
+                
+                try:
+                    local_vars = {"df": df}
+                    result = eval(clean_code, {}, local_vars)
+                    st.success(f"**Answer:** {result}")
+                except Exception as e:
+                    st.error("Could not calculate.")
+
+elif not file_obj:
+    st.info("Please upload a file to start.")
